@@ -9,9 +9,10 @@
 本插件为 AstrBot 的群聊场景提供增强功能，完全替代内置的「群聊上下文感知」和「主动回复」，并额外支持角色标签和发送者 ID。
 
 - **角色显示**: 在系统提示词中注入用户角色（admin/member），让 LLM 感知发送者权限
-- **增强群聊上下文**: 以包含发送者 ID、角色标签的格式记录群聊消息，并注入 LLM 上下文
+- **React 模式**: 将请求改写为“群聊反应模式”（基于群聊历史对新消息做反应）
+- **增强群聊上下文**: 以包含发送者 ID、角色标签的格式记录群聊消息，并注入 LLM 上下文（依赖 React 模式）
 - **图片转述**: 使用 LLM 为群聊中的图片生成文字描述，让纯文本模型也能「看到」图片
-- **主动回复**: 按概率随机回复群聊消息（无需被 @），支持白名单限制
+- **主动回复**: 按概率随机回复群聊消息（无需被 @），支持白名单限制（依赖 React 模式）
 
 ---
 
@@ -56,11 +57,23 @@ Group name: 技术交流群
 Current datetime: 2026-02-22 21:00 (CST)</system_reminder>
 ```
 
+### React 模式
+
+| 配置项 | 类型 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `react_mode.enable` | bool | `false` | 启用后，增强上下文与主动回复能力生效；群聊中的请求会改写为“群聊反应模式” |
+
+启用后，插件在群聊请求中会使用以下模式：
+
+1. 注入群聊历史
+2. 将当前消息作为“new message”让模型做即时反应
+3. 清空 `req.contexts`，避免与 react 提示词冲突
+
 ### 增强群聊上下文
 
 | 配置项 | 类型 | 默认值 | 说明 |
 | :--- | :--- | :--- | :--- |
-| `group_context.enable` | bool | `false` | 启用增强群聊上下文记录 |
+| `group_context.enable` | bool | `false` | 启用增强群聊上下文记录（需先开启 `react_mode.enable`） |
 | `group_context.max_messages` | int | `300` | 每个会话保留的最大消息条数 |
 | `group_context.include_sender_id` | bool | `true` | 消息格式中包含发送者 ID |
 | `group_context.include_role_tag` | bool | `true` | 消息格式中包含 admin/member 角色标签 |
@@ -84,7 +97,7 @@ Current datetime: 2026-02-22 21:00 (CST)</system_reminder>
 
 | 配置项 | 类型 | 默认值 | 说明 |
 | :--- | :--- | :--- | :--- |
-| `active_reply.enable` | bool | `false` | 启用群聊主动回复 |
+| `active_reply.enable` | bool | `false` | 启用群聊主动回复（需先开启 `react_mode.enable`） |
 | `active_reply.possibility` | float | `0.1` | 每条消息的回复概率（0.0 - 1.0） |
 | `active_reply.whitelist` | string | `""` | 限制主动回复的群列表，逗号分隔，留空则所有群生效 |
 

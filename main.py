@@ -1,15 +1,15 @@
 import datetime
 import random
+import re
 import traceback
 import uuid
 from collections import defaultdict
 
-from astrbot.api import star
+from astrbot.api import logger, star
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.message_components import At, Image, Plain
 from astrbot.api.platform import MessageType
 from astrbot.api.provider import LLMResponse, Provider, ProviderRequest
-from astrbot.core import logger
 from astrbot.core.agent.message import TextPart
 
 
@@ -20,10 +20,17 @@ class Main(star.Star):
         self.config = config or {}
         self.session_chats: dict[str, list[str]] = defaultdict(list)
 
+    def _react_mode_cfg(self):
+        rm = self.config.get("react_mode", {})
+        return {
+            "enable": rm.get("enable", False),
+        }
+
     def _group_context_cfg(self):
         gc = self.config.get("group_context", {})
+        react_mode_enable = self._react_mode_cfg()["enable"]
         return {
-            "enable": gc.get("enable", False),
+            "enable": gc.get("enable", False) and react_mode_enable,
             "max_messages": gc.get("max_messages", 300),
             "include_sender_id": gc.get("include_sender_id", True),
             "include_role_tag": gc.get("include_role_tag", True),
@@ -37,6 +44,7 @@ class Main(star.Star):
 
     def _active_reply_cfg(self):
         ar = self.config.get("active_reply", {})
+        react_mode_enable = self._react_mode_cfg()["enable"]
         whitelist_str = ar.get("whitelist", "")
         whitelist = (
             [w.strip() for w in whitelist_str.split(",") if w.strip()]
@@ -44,7 +52,7 @@ class Main(star.Star):
             else []
         )
         return {
-            "enable": ar.get("enable", False),
+            "enable": ar.get("enable", False) and react_mode_enable,
             "possibility": ar.get("possibility", 0.1),
             "whitelist": whitelist,
         }
@@ -230,7 +238,7 @@ class Main(star.Star):
     ) -> None:
         """Inject recorded group chat history into system prompt."""
         gc = self._group_context_cfg()
-        ar = self._active_reply_cfg()
+        react_mode = self._react_mode_cfg()
         if not gc["enable"]:
             return
         if event.unified_msg_origin not in self.session_chats:
@@ -238,7 +246,10 @@ class Main(star.Star):
 
         chats_str = "\n---\n".join(self.session_chats[event.unified_msg_origin])
 
-        if ar["enable"]:
+        if (
+            react_mode["enable"]
+            and event.get_message_type() == MessageType.GROUP_MESSAGE
+        ):
             prompt = req.prompt
             req.prompt = (
                 f"You are now in a chatroom. The chat history is as follows:\n{chats_str}"
@@ -252,6 +263,57 @@ class Main(star.Star):
                 "You are now in a chatroom. The chat history is as follows: \n"
             )
             req.system_prompt += chats_str
+
+        if self.config.get("mention_parse", True) and gc["include_sender_id"]:
+            req.system_prompt += (
+                "\n\n## Mention\n"
+                'When you want to mention/@ a user in your reply, use the format: <mention id="user_id">.\n'
+                'For example: <mention id="123456"> Hello!\n'
+                "You can mention multiple users in one message. "
+                "The user_id can be found in the chat history format [nickname/user_id/time].\n"
+                "Do NOT use this format for yourself."
+            )
+
+    _MENTION_RE = re.compile(r'<mention\s+id="([^"]+)"\s*/?>')
+
+    @filter.on_decorating_result()
+    async def parse_mentions(self, event: AstrMessageEvent) -> None:
+        """Parse <mention id="xxx"> tags in LLM output and replace with At components.
+
+        Note: This hook is NOT called for STREAMING_RESULT (the pipeline returns
+        early before hooks run). For STREAMING_FINISH the text has already been
+        sent. Therefore mention parsing only works with streaming disabled.
+        """
+        if not self.config.get("mention_parse", True):
+            return
+        if event.get_message_type() != MessageType.GROUP_MESSAGE:
+            return
+        result = event.get_result()
+        if not result or not result.chain:
+            return
+
+        # Check if any Plain component contains mention tags
+        has_mention = any(
+            isinstance(comp, Plain) and self._MENTION_RE.search(comp.text)
+            for comp in result.chain
+        )
+        if not has_mention:
+            return
+
+        new_chain = []
+        for comp in result.chain:
+            if not isinstance(comp, Plain) or not self._MENTION_RE.search(comp.text):
+                new_chain.append(comp)
+                continue
+            parts = self._MENTION_RE.split(comp.text)
+            # parts: [text, id, text, id, text, ...]
+            for i, part in enumerate(parts):
+                if i % 2 == 0:
+                    if part:
+                        new_chain.append(Plain(text=part))
+                else:
+                    new_chain.append(At(qq=part))
+        result.chain = new_chain
 
     @filter.on_llm_response()
     async def record_bot_response(
@@ -267,7 +329,9 @@ class Main(star.Star):
             return
 
         datetime_str = datetime.datetime.now().strftime("%H:%M:%S")
-        final_message = f"[You/{datetime_str}]: {resp.completion_text}"
+        # Clean mention tags for history recording
+        text = self._MENTION_RE.sub(r"[At: \1]", resp.completion_text)
+        final_message = f"[You/{datetime_str}]: {text}"
         logger.debug(
             f"enhance-mode | recorded AI response: "
             f"{event.unified_msg_origin} | {final_message}"

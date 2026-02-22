@@ -5,14 +5,33 @@
     "type": "bool",
     "default": true
   },
-  "group_context": {
-    "description": "增强群聊上下文",
-    "hint": "以增强格式（含发送者 ID、角色标签）记录群聊消息并注入 LLM 上下文。完全替代内置的「群聊上下文感知」功能。",
+  "mention_parse": {
+    "description": "@ 提及解析",
+    "hint": "解析 LLM 输出中的 <mention id=\"用户ID\"> 标签，替换为真正的 @ 消息组件。需要开启「增强群聊上下文」并包含发送者 ID。",
+    "type": "bool",
+    "default": true
+  },
+  "react_mode": {
+    "description": "React 模式",
+    "hint": "启用后，增强群聊上下文与主动回复能力生效；并将群聊中的 LLM 请求改写为“群聊反应模式”（基于群聊历史对新消息做反应）。",
     "type": "object",
     "items": {
       "enable": {
         "description": "启用",
-        "hint": "启用增强群聊上下文记录。请先关闭 AstrBot 内置的「群聊上下文感知」和「主动回复」选项。",
+        "hint": "启用 React 模式。关闭时，增强群聊上下文与主动回复均不会生效。开启后，群聊中的请求会使用 react 提示词并清空原有 contexts。",
+        "type": "bool",
+        "default": false
+      }
+    }
+  },
+  "group_context": {
+    "description": "增强群聊上下文",
+    "hint": "以增强格式（含发送者 ID、角色标签）记录群聊消息并注入 LLM 上下文。完全替代内置的「群聊上下文感知」功能。依赖「React 模式」开启。",
+    "type": "object",
+    "items": {
+      "enable": {
+        "description": "启用",
+        "hint": "启用增强群聊上下文记录。请先开启「React 模式」，并关闭 AstrBot 内置的「群聊上下文感知」和「主动回复」选项。",
         "type": "bool",
         "default": false
       },
@@ -57,12 +76,12 @@
   },
   "active_reply": {
     "description": "主动回复",
-    "hint": "在群聊中随机回复消息（无需被 @）。完全替代内置的「主动回复」功能。",
+    "hint": "在群聊中随机回复消息（无需被 @）。完全替代内置的「主动回复」功能。依赖「React 模式」开启。",
     "type": "object",
     "items": {
       "enable": {
         "description": "启用",
-        "hint": "启用群聊主动回复。请先关闭 AstrBot 内置的「主动回复」选项。",
+        "hint": "启用群聊主动回复。请先开启「React 模式」并关闭 AstrBot 内置的「主动回复」选项。",
         "type": "bool",
         "default": false
       },
