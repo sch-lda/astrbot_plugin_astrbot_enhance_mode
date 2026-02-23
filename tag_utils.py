@@ -12,6 +12,7 @@ QUOTE_RE = re.compile(
 )
 MENTION_CLOSE_RE = re.compile(r"</mention\s*>", re.IGNORECASE)
 QUOTE_CLOSE_RE = re.compile(r"</quote\s*>", re.IGNORECASE)
+STRICT_REFUSE_RE = re.compile(r"<refuse/>")
 
 
 def normalize_quote_id(raw_id: str | None) -> str:
@@ -108,9 +109,30 @@ def build_interaction_instructions(mention_parse: bool, include_sender_id: bool)
         "Only use quote when it is meaningful to reference a specific message.\n"
         "Important: quote tag is NOT a container tag. Do NOT output </quote>."
     )
+    instructions += (
+        "\n\n## Refuse\n"
+        "If you decide not to reply, output exactly `<refuse/>` as the entire response.\n"
+        "The first characters MUST be `<refuse/>`, with no extra text before or after.\n"
+        "Any other format will be treated as normal text and sent through."
+    )
     return instructions
 
 
 def bounded_chat_history_text(messages: list[str]) -> str:
     chats_str = "\n---\n".join(messages)
     return f"=== CHAT_HISTORY_BEGIN ===\n{chats_str}\n=== CHAT_HISTORY_END ==="
+
+
+def has_refuse_tag(text: str | None) -> bool:
+    if not text:
+        return False
+    return bool(STRICT_REFUSE_RE.fullmatch(text))
+
+
+def chain_has_refuse_tag(chain: list) -> bool:
+    if len(chain) != 1:
+        return False
+    only_comp = chain[0]
+    if not isinstance(only_comp, Plain):
+        return False
+    return has_refuse_tag(only_comp.text)
