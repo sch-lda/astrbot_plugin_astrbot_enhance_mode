@@ -73,6 +73,7 @@
 - 统计、筛选、分页、详情、删除
 - Cleanup：将旧记录规范化为新时间元数据并回写存储
 - 管理命令：`/enhance rag-webui`
+- 依赖：`fastapi`、`uvicorn`（已在 `requirements.txt` 声明，插件加载时自动安装）
 
 ## Installation
 
@@ -288,6 +289,7 @@ astrbot_plugin_astrbot_enhance_mode/
 ├── tag_utils.py
 ├── ban_control.py
 ├── memory_rag_store.py
+├── requirements.txt
 ├── webui/
 │   ├── __init__.py
 │   └── server.py
