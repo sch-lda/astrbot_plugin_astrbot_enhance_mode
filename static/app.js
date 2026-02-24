@@ -5,6 +5,7 @@
     pageSize: 20,
     total: 0,
     hasMore: false,
+    busyCount: 0,
     filters: {
       keyword: "",
       groupScope: "",
@@ -41,37 +42,63 @@
   };
 
   function init() {
-    dom.loginForm.addEventListener("submit", onLogin);
-    dom.logoutBtn.addEventListener("click", logout);
-    dom.refreshBtn.addEventListener("click", fetchAll);
-    dom.searchBtn.addEventListener("click", onSearch);
-    dom.resetBtn.addEventListener("click", onReset);
+    dom.loginForm.addEventListener("submit", (event) => {
+      void onLogin(event);
+    });
+    dom.logoutBtn.addEventListener("click", () => {
+      void logout();
+    });
+    dom.refreshBtn.addEventListener("click", () => {
+      void fetchAll();
+    });
+    dom.searchBtn.addEventListener("click", () => {
+      void onSearch();
+    });
+    dom.resetBtn.addEventListener("click", () => {
+      void onReset();
+    });
     dom.prevBtn.addEventListener("click", () => {
       if (state.page > 1) {
         state.page -= 1;
-        fetchMemories();
+        void fetchMemories();
       }
     });
     dom.nextBtn.addEventListener("click", () => {
       if (state.hasMore) {
         state.page += 1;
-        fetchMemories();
+        void fetchMemories();
       }
     });
     dom.pageSize.addEventListener("change", () => {
       state.pageSize = Number(dom.pageSize.value || 20);
       state.page = 1;
-      fetchMemories();
+      void fetchMemories();
     });
     dom.drawerClose.addEventListener("click", () => {
       dom.drawer.classList.remove("open");
     });
 
+    [dom.keywordInput, dom.scopeInput, dom.roleInput].forEach((input) => {
+      input.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        void onSearch();
+      });
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        dom.drawer.classList.remove("open");
+      }
+    });
+
+    updateControlState();
+
     if (state.token) {
       switchView("dashboard");
       fetchAll().catch((error) => {
         console.error(error);
-        logout();
+        void logout();
       });
     } else {
       switchView("login");
@@ -86,11 +113,45 @@
     }
     dom.dashboardView.classList.remove("active");
     dom.loginView.classList.add("active");
+    dom.password.focus();
+  }
+
+  function startBusy() {
+    state.busyCount += 1;
+    document.body.classList.add("is-busy");
+    updateControlState();
+  }
+
+  function endBusy() {
+    state.busyCount = Math.max(0, state.busyCount - 1);
+    if (state.busyCount === 0) {
+      document.body.classList.remove("is-busy");
+    }
+    updateControlState();
+  }
+
+  async function runWithBusy(task) {
+    startBusy();
+    try {
+      return await task();
+    } finally {
+      endBusy();
+    }
+  }
+
+  function updateControlState() {
+    const isBusy = state.busyCount > 0;
+    dom.searchBtn.disabled = isBusy;
+    dom.refreshBtn.disabled = isBusy;
+    dom.resetBtn.disabled = isBusy;
+    dom.pageSize.disabled = isBusy;
+    dom.prevBtn.disabled = isBusy || state.page <= 1;
+    dom.nextBtn.disabled = isBusy || !state.hasMore;
   }
 
   function showToast(message, isError = false) {
     dom.toast.textContent = message;
-    dom.toast.style.background = isError ? "#7f1d1d" : "#111827";
+    dom.toast.style.background = isError ? "#991b1b" : "#132d32";
     dom.toast.classList.add("show");
     setTimeout(() => dom.toast.classList.remove("show"), 2200);
   }
@@ -118,18 +179,21 @@
   async function onLogin(event) {
     event.preventDefault();
     dom.loginError.textContent = "";
+
     try {
-      const payload = await api("/api/login", {
-        method: "POST",
-        body: { password: dom.password.value.trim() },
-        skipAuth: true,
+      await runWithBusy(async () => {
+        const payload = await api("/api/login", {
+          method: "POST",
+          body: { password: dom.password.value.trim() },
+          skipAuth: true,
+        });
+        state.token = payload.token;
+        localStorage.setItem("enhance_rag_token", state.token);
+        dom.password.value = "";
+        switchView("dashboard");
+        showToast("Login success.");
+        await fetchAll(false);
       });
-      state.token = payload.token;
-      localStorage.setItem("enhance_rag_token", state.token);
-      dom.password.value = "";
-      switchView("dashboard");
-      showToast("Login success.");
-      await fetchAll();
     } catch (error) {
       dom.loginError.textContent = error.message || "Login failed";
     }
@@ -145,15 +209,20 @@
     } finally {
       state.token = "";
       localStorage.removeItem("enhance_rag_token");
+      dom.drawer.classList.remove("open");
       switchView("login");
     }
   }
 
+  function formatNumber(value) {
+    return Number(value || 0).toLocaleString("en-US");
+  }
+
   function renderStats(stats) {
-    dom.statTotal.textContent = stats.total_memories ?? 0;
-    dom.statScopes.textContent = stats.group_scope_count ?? 0;
-    dom.statGroups.textContent = stats.group_id_count ?? 0;
-    dom.statRoles.textContent = stats.role_count ?? 0;
+    dom.statTotal.textContent = formatNumber(stats.total_memories);
+    dom.statScopes.textContent = formatNumber(stats.group_scope_count);
+    dom.statGroups.textContent = formatNumber(stats.group_id_count);
+    dom.statRoles.textContent = formatNumber(stats.role_count);
   }
 
   function clipText(text, max = 90) {
@@ -163,7 +232,8 @@
 
   function renderRows(items) {
     if (!Array.isArray(items) || items.length === 0) {
-      dom.body.innerHTML = '<tr><td colspan="6" class="center muted">No records</td></tr>';
+      dom.body.innerHTML =
+        '<tr><td colspan="6" class="center muted">No records found for current filters.</td></tr>';
       return;
     }
 
@@ -190,10 +260,14 @@
     }
 
     dom.body.querySelectorAll("button[data-action='detail']").forEach((btn) => {
-      btn.addEventListener("click", () => openDetail(Number(btn.dataset.id)));
+      btn.addEventListener("click", () => {
+        void openDetail(Number(btn.dataset.id));
+      });
     });
     dom.body.querySelectorAll("button[data-action='delete']").forEach((btn) => {
-      btn.addEventListener("click", () => deleteMemory(Number(btn.dataset.id)));
+      btn.addEventListener("click", () => {
+        void deleteMemory(Number(btn.dataset.id));
+      });
     });
   }
 
@@ -202,45 +276,62 @@
     renderStats(payload.data || {});
   }
 
-  async function fetchMemories() {
-    const params = new URLSearchParams();
-    params.set("page", String(state.page));
-    params.set("page_size", String(state.pageSize));
-    if (state.filters.keyword) params.set("keyword", state.filters.keyword);
-    if (state.filters.groupScope) params.set("group_scope", state.filters.groupScope);
-    if (state.filters.roleId) params.set("role_id", state.filters.roleId);
+  async function fetchMemories(withBusy = true) {
+    const run = async () => {
+      const params = new URLSearchParams();
+      params.set("page", String(state.page));
+      params.set("page_size", String(state.pageSize));
+      if (state.filters.keyword) params.set("keyword", state.filters.keyword);
+      if (state.filters.groupScope) params.set("group_scope", state.filters.groupScope);
+      if (state.filters.roleId) params.set("role_id", state.filters.roleId);
 
-    const payload = await api(`/api/memories?${params.toString()}`);
-    const data = payload.data || {};
-    state.total = Number(data.total || 0);
-    state.hasMore = Boolean(data.has_more);
-    renderRows(data.items || []);
-    const totalPages = Math.max(1, Math.ceil(state.total / state.pageSize));
-    dom.pageInfo.textContent = `Page ${state.page}/${totalPages} · Total ${state.total}`;
-    dom.prevBtn.disabled = state.page <= 1;
-    dom.nextBtn.disabled = !state.hasMore;
-  }
+      const payload = await api(`/api/memories?${params.toString()}`);
+      const data = payload.data || {};
+      state.total = Number(data.total || 0);
+      state.hasMore = Boolean(data.has_more);
+      renderRows(data.items || []);
+      const totalPages = Math.max(1, Math.ceil(state.total / state.pageSize));
+      dom.pageInfo.textContent = `Page ${state.page}/${totalPages} · Total ${formatNumber(state.total)}`;
+      updateControlState();
+    };
 
-  async function fetchAll() {
-    try {
-      await Promise.all([fetchStats(), fetchMemories()]);
-    } catch (error) {
-      showToast(error.message || "Load failed", true);
-      if (String(error.message || "").toLowerCase().includes("token")) {
-        logout();
-      }
+    if (withBusy) {
+      return runWithBusy(run);
     }
+    return run();
   }
 
-  function onSearch() {
+  async function fetchAll(withBusy = true) {
+    const run = async () => {
+      try {
+        await Promise.all([fetchStats(), fetchMemories(false)]);
+      } catch (error) {
+        showToast(error.message || "Load failed", true);
+        if (String(error.message || "").toLowerCase().includes("token")) {
+          void logout();
+        }
+      }
+    };
+
+    if (withBusy) {
+      return runWithBusy(run);
+    }
+    return run();
+  }
+
+  async function onSearch() {
     state.filters.keyword = dom.keywordInput.value.trim();
     state.filters.groupScope = dom.scopeInput.value.trim();
     state.filters.roleId = dom.roleInput.value.trim();
     state.page = 1;
-    fetchMemories();
+    try {
+      await fetchMemories();
+    } catch (error) {
+      showToast(error.message || "Search failed", true);
+    }
   }
 
-  function onReset() {
+  async function onReset() {
     dom.keywordInput.value = "";
     dom.scopeInput.value = "";
     dom.roleInput.value = "";
@@ -248,14 +339,21 @@
     state.filters.groupScope = "";
     state.filters.roleId = "";
     state.page = 1;
-    fetchMemories();
+
+    try {
+      await fetchMemories();
+    } catch (error) {
+      showToast(error.message || "Reset failed", true);
+    }
   }
 
   async function openDetail(memoryId) {
     try {
-      const payload = await api(`/api/memories/${memoryId}`);
-      dom.drawerContent.textContent = JSON.stringify(payload.data || {}, null, 2);
-      dom.drawer.classList.add("open");
+      await runWithBusy(async () => {
+        const payload = await api(`/api/memories/${memoryId}`);
+        dom.drawerContent.textContent = JSON.stringify(payload.data || {}, null, 2);
+        dom.drawer.classList.add("open");
+      });
     } catch (error) {
       showToast(error.message || "Detail load failed", true);
     }
@@ -264,10 +362,13 @@
   async function deleteMemory(memoryId) {
     const confirmed = window.confirm(`Delete memory ${memoryId}?`);
     if (!confirmed) return;
+
     try {
-      await api(`/api/memories/${memoryId}`, { method: "DELETE" });
-      showToast(`Deleted memory ${memoryId}`);
-      await fetchAll();
+      await runWithBusy(async () => {
+        await api(`/api/memories/${memoryId}`, { method: "DELETE" });
+        showToast(`Deleted memory ${memoryId}`);
+        await fetchAll(false);
+      });
     } catch (error) {
       showToast(error.message || "Delete failed", true);
     }
