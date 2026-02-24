@@ -1,166 +1,296 @@
-# AstrBot Enhance Mode - 群聊增强插件
+# AstrBot Enhance Mode
 
-**版本**: v0.1.0 | **作者**: 阿汐
+**Version**: `v0.2.1`  
+**Author**: `阿汐`
 
----
+`astrbot_plugin_astrbot_enhance_mode` 是 AstrBot 的群聊增强插件，提供 React 群聊上下文、主动回复、标签解析、封禁控制、Memory RAG 与可视化 WebUI。
 
-## 功能概述
+## Design Philosophy
 
-本插件为 AstrBot 的群聊场景提供增强功能，完全替代内置的「群聊上下文感知」和「主动回复」，并额外支持角色标签和发送者 ID。
+本插件把 Bot 设计为“具有人格与边界的行动主体”，目标不是把 Bot 做成被动问答器，而是让它拥有连续、可执行的一套互动生活。
 
-- **角色显示**: 在系统提示词中注入用户角色（admin/member），让 LLM 感知发送者权限
-- **@ 提及解析**: 解析 LLM 输出中的 `<mention>` 标签，替换为真正的 @ 消息组件
-- **引用回复**: 解析 LLM 输出中的 `<quote>` 标签，替换为真正的引用回复组件；同时记录收到的引用消息
-- **React 模式**: 将请求改写为"群聊反应模式"（基于群聊历史对新消息做反应）
-- **增强群聊上下文**: 以包含发送者 ID、角色标签、消息 ID 的格式记录群聊消息，并注入 LLM 上下文（依赖 React 模式）
-- **图片转述**: 使用 LLM 为群聊中的图片生成文字描述，让纯文本模型也能「看到」图片
-- **主动回复**: 支持概率触发或模型选择触发（无需被 @），支持白名单限制（依赖 React 模式）
+1. 回复（Reply）
+- Bot 决定何时说话、如何说话，并通过 `<mention/>`、`<quote/>` 表达互动意图。
 
----
+2. 拒绝回复（Refuse）
+- Bot 可以通过 `<refuse/>` 主动不发送本轮回复。
+- 这是行为边界，不是异常状态。
 
-## 快速开始
+3. 忽略某人消息（Ban）
+- 这里的 `ban` 是 Bot 侧的“忽略/不处理”策略，不是平台管理员禁言。
+- 不要求 Bot 拥有群管理权限，也不会对平台侧用户状态做修改。
 
-### 安装
+4. 记忆与回忆（Memory RAG）
+- Bot 可以写入经历、按条件检索回忆，并在跨会话/跨群场景维持人格连续性。
+- `ignore_group_id=true` 用于跨群读取，服务于“同一人格的一体化记忆”。
 
-将插件文件夹放置于 AstrBot 的 `data/plugins/` 目录下，重启 AstrBot 即可。
+这四类能力共同构成了 Bot 的完整生命周期：表达、克制、选择性互动、持续成长。
 
-### 使用前配置
+## Features
 
-使用本插件前，请先在 AstrBot 后台**关闭以下内置功能**（避免重复）：
+### Group Chat Enhancement
 
-1. **群聊上下文感知**（`group_icl_enable`）→ 关闭
-2. **主动回复**（`active_reply.enable`）→ 关闭
-3. **引用回复**（`reply_with_quote`）→ 关闭（与本插件的 Quote 功能**互斥**，同时开启会导致模型选择的引用被内置引用覆盖）
+- React 模式（群聊上下文增强总开关）
+- 群聊历史增强（可注入发送者 ID、角色标签、消息编号）
+- 图片转述（可选，调用指定/默认模型生成图片描述）
+- 角色显示（在 system reminder 注入 `admin/member`）
 
-以下内置功能**保持开启**：
+### Active Reply
 
-1. **用户识别**（`identifier`）→ 保持开启（角色显示和发送者 ID 依赖此功能）
+- `probability` 概率触发
+- `model_choice` 模型判定触发（支持人格面具占位符）
+- 白名单控制（按 `unified_msg_origin` 或群号）
 
-然后在插件配置页面启用本插件的对应功能即可。
+### Output Tags
 
-> **注意**: 如果启用了会话白名单，需要将目标群加入白名单，否则非管理员的群消息会被 pipeline 拦截，无法被本插件记录。
+- `<mention id="..."/>`：转为平台 At 组件
+- `<quote id="..."/>`：转为平台引用组件
+- `<refuse/>`：触发拒绝发送，清空结果链
 
----
+### Ban Control
 
-## 配置说明
+- 运行时拦截被封禁用户消息
+- LLM Tools:
+  - `enhance_get_ban_list_status`
+  - `enhance_ban_user`
+  - `enhance_unban_user`
 
-所有配置均可在 AstrBot 控制台的插件配置页面修改。
+### Memory RAG
 
-### 角色显示
+- LLM Tools:
+  - `enhance_memory_rag_write`
+  - `enhance_memory_rag_read`
+- Embedding Provider 独立配置（不是聊天模型 Provider）
+- 按角色、时间、群范围过滤
+- 支持 `ignore_group_id=true` 跨群读取
 
-| 配置项 | 类型 | 默认值 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `role_display` | bool | `true` | 在系统提示词的 `<system_reminder>` 中追加 `Role: admin/member` |
+### Memory RAG WebUI
 
-启用后，system_reminder 的效果：
+- 独立 HTTP 服务
+- 登录认证（支持固定密码或启动时随机密码）
+- 统计、筛选、分页、详情、删除
+- 管理命令：`/enhance rag-webui`
 
+## Installation
+
+1. 将插件目录放到 `data/plugins/`
+2. 重启 AstrBot
+3. 在插件配置页面启用需要的能力
+
+## Recommended Builtin Settings
+
+为避免能力重叠，建议：
+
+- 关闭内置群聊上下文：`group_icl_enable`
+- 关闭内置主动回复：`active_reply.enable`
+- 关闭内置引用回复：`reply_with_quote`
+- 保持内置识别开启：`identifier`
+
+## Configuration
+
+配置分组（键名与 `_conf_schema.json` 一致）：
+
+- `group_features`
+- `group_history_enhancement`
+- `active_reply`
+- `memory_rag`
+- `memory_rag_webui`
+- `global_settings`
+
+### `group_features`
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `react_mode_enable` | bool | `false` | React 模式总开关，群历史增强和主动回复都依赖它 |
+| `role_display` | bool | `true` | 注入用户角色（admin/member） |
+| `mention_parse` | bool | `true` | 解析 `<mention/>` 与 `<quote/>` |
+| `ban_control_enable` | bool | `true` | 启用封禁工具和运行时拦截 |
+| `ban_max_duration_sec` | int | `2592000` | 单次封禁时长上限（秒） |
+| `ban_allow_admin` | bool | `false` | 是否允许封禁管理员 |
+
+### `group_history_enhancement`
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `enable` | bool | `false` | 启用群聊历史增强 |
+| `max_messages` | int | `300` | 每个会话保留的历史条数 |
+| `include_sender_id` | bool | `true` | 历史中包含发送者 ID |
+| `include_role_tag` | bool | `true` | 历史中包含角色标签 |
+| `image_caption` | bool | `false` | 为图片消息生成文字描述 |
+| `image_caption_provider_id` | string | `""` | 图片转述提供商 ID，空则默认 |
+| `image_caption_prompt` | string | `"用一句话描述这张图片。"` | 图片转述提示词 |
+
+### `active_reply`
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `enable` | bool | `false` | 启用主动回复 |
+| `mode` | string | `"probability"` | `probability` 或 `model_choice` |
+| `possibility` | float | `0.1` | 概率触发时生效 |
+| `model_stack_size` | int | `8` | `model_choice` 栈长度 |
+| `model_history_messages` | int | `0` | `model_choice` 额外历史条数 |
+| `model_choice_prompt` | string | schema 默认值 | 判定提示词，支持占位符 |
+| `whitelist` | string | `""` | 逗号分隔来源/群号白名单 |
+
+### `memory_rag`
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `enable` | bool | `true` | 启用 Memory RAG 工具 |
+| `embedding_provider_id` | string | `""` | Embedding Provider ID，空则自动选择第一个可用 embedding provider |
+| `default_recall_k` | int | `20` | 默认语义召回条数 |
+| `max_return_results` | int | `200` | 单次读取返回上限 |
+
+### `memory_rag_webui`
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `enable` | bool | `false` | 启用 WebUI 服务 |
+| `host` | string | `127.0.0.1` | 监听地址 |
+| `port` | int | `8899` | 监听端口 |
+| `access_password` | string | `""` | 登录密码，空则自动生成并写日志 |
+| `session_timeout` | int | `3600` | 会话超时（秒） |
+
+### `global_settings`
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `lru_cache.max_origins` | int | `500` | 最大来源缓存数 |
+| `timeouts.image_caption_sec` | float | `45` | 图片转述超时（秒） |
+| `timeouts.model_choice_sec` | float | `45` | 模型判定超时（秒） |
+
+## Usage
+
+### Output Tags
+
+```text
+<mention id="user_id"/>
+<quote id="msg_id"/>
+<refuse/>
 ```
-<system_reminder>User ID: 123456, Nickname: 张三, Role: admin
-Group name: 技术交流群
-Current datetime: 2026-02-22 21:00 (CST)</system_reminder>
+
+### WebUI Command
+
+```text
+/enhance rag-webui
 ```
 
-### @ 提及解析
+## LLM Tools
 
-| 配置项 | 类型 | 默认值 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `mention_parse` | bool | `true` | 解析 LLM 输出中的 `<mention id="用户ID">` 标签，替换为 @ 消息组件 |
+### Ban Tools
 
-启用后，LLM 可在输出中使用 `<mention id="123456"> 你好！` 来 @ 群成员。需要同时开启「增强群聊上下文」并包含发送者 ID，否则模型无法获取用户 ID。
+1. `enhance_get_ban_list_status(user_id="", max_results=20)`
+2. `enhance_ban_user(user_id, duration="10m")`
+3. `enhance_unban_user(user_id)`
 
-### React 模式
+`duration` 支持 `s/m/h/d`。
 
-| 配置项 | 类型 | 默认值 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `react_mode.enable` | bool | `false` | 启用后，增强上下文与主动回复能力生效；群聊中的请求会改写为"群聊反应模式" |
+### Memory RAG Tools
 
-启用后，插件在群聊请求中会使用以下模式：
+#### `enhance_memory_rag_write`
 
-1. 注入群聊历史
-2. 将当前消息作为“new message”让模型做即时反应
-3. 清空 `req.contexts`，避免与 react 提示词冲突
+| Param | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `content` | string | Yes | - | 记忆文本 |
+| `related_role_ids` | string | Yes | - | 角色 ID（JSON 数组字符串或逗号分隔） |
+| `memory_time` | string | No | `""` | Unix/ISO 时间 |
+| `group_scope` | string | No | `""` | 完整群范围，如 `default:123456` |
+| `group_id` | string | No | `""` | 群号 |
+| `platform_id` | string | No | `""` | 平台 ID |
+| `extra_metadata_json` | string | No | `"{}"` | 额外元数据 JSON |
 
-### 运行保护
+#### `enhance_memory_rag_read`
 
-| 配置项 | 类型 | 默认值 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `lru_cache.max_origins` | int | `500` | 最多保留的来源（`unified_msg_origin`）缓存数量，超出按 LRU 淘汰 |
-| `timeouts.image_caption_sec` | float | `45` | 图片转述调用 LLM 的超时时间（秒） |
-| `timeouts.model_choice_sec` | float | `45` | `model_choice` 判定调用 LLM 的超时时间（秒） |
+| Param | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `query` | string | No | `""` | 检索词 |
+| `related_role_ids` | string | No | `""` | 角色 ID（JSON 数组字符串或逗号分隔） |
+| `role_match_mode` | string | No | `"any"` | `any` / `all` |
+| `start_time` | string | No | `""` | 开始时间（Unix/ISO） |
+| `end_time` | string | No | `""` | 结束时间（Unix/ISO） |
+| `group_scope` | string | No | `""` | 完整群范围 |
+| `group_id` | string | No | `""` | 群号 |
+| `platform_id` | string | No | `""` | 平台 ID |
+| `sort_by` | string | No | `"relevance"` | `relevance` / `time` |
+| `sort_order` | string | No | `"desc"` | `desc` / `asc` |
+| `max_results` | int | No | `10` | 请求返回条数 |
+| `embedding_recall_k` | int | No | `0` | `<=0` 时回退 `memory_rag.default_recall_k` |
+| `ignore_group_id` | bool | No | `false` | `true` 时不自动套当前群范围，可跨群读取 |
 
-### 增强群聊上下文
+## Memory RAG Behavior
 
-| 配置项 | 类型 | 默认值 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `group_context.enable` | bool | `false` | 启用增强群聊上下文记录（需先开启 `react_mode.enable`） |
-| `group_context.max_messages` | int | `300` | 每个会话保留的最大消息条数 |
-| `group_context.include_sender_id` | bool | `true` | 消息格式中包含发送者 ID |
-| `group_context.include_role_tag` | bool | `true` | 消息格式中包含 admin/member 角色标签 |
-| `group_context.image_caption` | bool | `false` | 使用 LLM 为图片生成文字描述 |
-| `group_context.image_caption_provider_id` | string | `""` | 图片转述使用的 LLM 提供商 ID，留空使用默认 |
-| `group_context.image_caption_prompt` | string | `"用一句话描述这张图片。"` | 图片转述提示词 |
+1. `query` 为空时不生成查询向量，按时间排序返回。
+2. `embedding_recall_k <= 0` 时使用 `memory_rag.default_recall_k`（默认 `20`）。
+3. 最终返回条数受 `memory_rag.max_return_results`（默认 `200`）裁剪。
+4. `ignore_group_id=false` 时自动注入当前会话群范围；`true` 时可跨群读取。
+5. `role_match_mode=all` 时必须包含全部角色；`any` 时命中任一角色。
 
-启用后，群聊消息的记录格式：
+跨群读取示例：
 
+```json
+{
+  "query": "日记",
+  "related_role_ids": "[\"3406402603\"]",
+  "sort_by": "time",
+  "sort_order": "desc",
+  "ignore_group_id": true,
+  "max_results": 10
+}
 ```
-[张三/123456/21:00:00](admin) #msg78901:  今天天气不错
----
-[李四/654321/21:00:05](member) #msg78902:  [Quote 张三: 今天天气不错] 确实
----
-[张三/123456/21:00:10](admin) #msg78903:  [Image]
----
-[You/21:00:15]: 是的，今天阳光明媚！
+
+## WebUI API
+
+基础路由：
+
+- `GET /`
+- `GET /api/health`
+- `POST /api/login`
+- `POST /api/logout`
+- `GET /api/stats`
+- `GET /api/memories`
+- `GET /api/memories/{memory_id}`
+- `DELETE /api/memories/{memory_id}`
+
+## Data Storage
+
+插件数据目录：
+
+```text
+data/plugin_data/astrbot_plugin_astrbot_enhance_mode/
 ```
 
-其中：
-- `#msgXXX` 为平台消息 ID，LLM 可通过 `<quote id="XXX">` 引用该消息
-- `[Quote 发送者: 内容]` 表示该消息引用了另一条消息
-- `[Image]` / `[Image: 描述]` 表示图片（开启图片转述后会附带描述）
-- `[At: 昵称]` 表示 @ 某人
+数据库文件：
 
-### 引用回复（Quote）
+- `ban_list.db`
+- `memory_rag.db`
 
-插件会自动在 LLM 上下文中注入 Quote 指令，教模型使用 `<quote id="msg_id">` 标签来引用特定消息。模型输出的 `<quote>` 标签会被解析为平台原生的引用回复组件。
+## Project Structure
 
-使用规则：
-- `<quote>` 标签必须出现在输出的**最前面**
-- 每条回复只能引用**一条**消息
-- `msg_id` 来自聊天记录中 `#msg` 后的数值
-
-> **重要**: 本插件的 Quote 功能与 AstrBot 内置的「引用回复」（`reply_with_quote`）**互斥**。如果同时开启，内置的引用回复会覆盖模型通过 `<quote>` 选择的引用目标。请在 AstrBot 后台关闭 `reply_with_quote`。
-
-### 主动回复
-
-| 配置项 | 类型 | 默认值 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `active_reply.enable` | bool | `false` | 启用群聊主动回复（需先开启 `react_mode.enable`） |
-| `active_reply.mode` | string | `"probability"` | 触发模式：`probability`（概率触发）/`model_choice`（模型选择触发） |
-| `active_reply.possibility` | float | `0.1` | `mode=probability` 时，每条消息的回复概率（0.0 - 1.0） |
-| `active_reply.model_stack_size` | int | `8` | `mode=model_choice` 时，累计消息达到该长度触发一次模型判定 |
-| `active_reply.model_history_messages` | int | `0` | `mode=model_choice` 时，判定阶段额外附带的历史上下文条数（0 表示不附带） |
-| `active_reply.model_choice_prompt` | string | 见 schema 默认值 | `mode=model_choice` 时的判定提示词，可使用 `{stack_size}`、`{messages}`、`{history_count}`、`{history_context}`、`{persona_name}`、`{persona_mask}` |
-| `active_reply.whitelist` | string | `""` | 限制主动回复的群列表，逗号分隔，留空则所有群生效 |
-
-`model_choice` 模式工作流：
-
-1. 每条群消息进入触发栈
-2. 栈长度达到 `model_stack_size` 后，调用模型做一次"是否需要主动回复"判定（判定 prompt 会注入当前生效的人格面具，以及可选历史上下文）
-3. 若模型返回 `REPLY`，回复阶段会基于候选消息列表"挑一条感兴趣的消息"进行回复，可使用 Mention / Quote 定向回复对应成员；返回 `SKIP` 则不回复并清空本轮栈
-
-`model_choice` 会输出以下 `info` 级日志：
-
-1. 栈满并开始判定
-2. 判定通过（REPLY）
-3. 判定拒绝（SKIP 或非标准输出按 SKIP）
-
----
-
-## 插件结构
-
-```
+```text
 astrbot_plugin_astrbot_enhance_mode/
-├── main.py              # 插件主逻辑
-├── metadata.yaml        # 插件元信息
-├── _conf_schema.json    # 配置 Schema（WebUI 自动渲染）
-└── README.md            # 说明文档
+├── main.py
+├── plugin_config.py
+├── runtime_state.py
+├── tag_utils.py
+├── ban_control.py
+├── memory_rag_store.py
+├── webui/
+│   ├── __init__.py
+│   └── server.py
+├── static/
+│   ├── index.html
+│   ├── app.js
+│   └── styles.css
+├── _conf_schema.json
+├── metadata.yaml
+└── README.md
+```
+
+## Development
+
+在插件目录执行：
+
+```bash
+ruff format .
+ruff check .
 ```

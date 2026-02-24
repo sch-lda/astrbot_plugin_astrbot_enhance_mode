@@ -85,6 +85,9 @@ class GroupFeatureEnhancementConfig:
     react_mode_enable: bool = False
     role_display: bool = True
     mention_parse: bool = True
+    ban_control_enable: bool = True
+    ban_max_duration_sec: int = 2592000
+    ban_allow_admin: bool = False
 
 
 @dataclass(frozen=True)
@@ -105,6 +108,23 @@ class GlobalSettingsConfig:
 
 
 @dataclass(frozen=True)
+class MemoryRAGConfig:
+    enable: bool = True
+    embedding_provider_id: str = ""
+    default_recall_k: int = 20
+    max_return_results: int = 200
+
+
+@dataclass(frozen=True)
+class MemoryRAGWebUIConfig:
+    enable: bool = False
+    host: str = "127.0.0.1"
+    port: int = 8899
+    access_password: str = ""
+    session_timeout: int = 3600
+
+
+@dataclass(frozen=True)
 class PluginConfig:
     group_history: GroupHistoryEnhancementConfig = field(
         default_factory=GroupHistoryEnhancementConfig
@@ -114,6 +134,8 @@ class PluginConfig:
         default_factory=GroupFeatureEnhancementConfig
     )
     global_settings: GlobalSettingsConfig = field(default_factory=GlobalSettingsConfig)
+    memory_rag: MemoryRAGConfig = field(default_factory=MemoryRAGConfig)
+    memory_rag_webui: MemoryRAGWebUIConfig = field(default_factory=MemoryRAGWebUIConfig)
 
     @property
     def group_history_enabled(self) -> bool:
@@ -132,6 +154,11 @@ def parse_plugin_config(raw: dict[str, Any] | None) -> PluginConfig:
         react_mode_enable=_to_bool(group_features_raw.get("react_mode_enable"), False),
         role_display=_to_bool(group_features_raw.get("role_display"), True),
         mention_parse=_to_bool(group_features_raw.get("mention_parse"), True),
+        ban_control_enable=_to_bool(group_features_raw.get("ban_control_enable"), True),
+        ban_max_duration_sec=max(
+            1, _to_int(group_features_raw.get("ban_max_duration_sec"), 2592000)
+        ),
+        ban_allow_admin=_to_bool(group_features_raw.get("ban_allow_admin"), False),
     )
 
     group_history_raw = raw.get("group_history_enhancement", {})
@@ -182,9 +209,33 @@ def parse_plugin_config(raw: dict[str, Any] | None) -> PluginConfig:
         ),
     )
 
+    memory_rag_raw = raw.get("memory_rag", {})
+    memory_rag = MemoryRAGConfig(
+        enable=_to_bool(memory_rag_raw.get("enable"), True),
+        embedding_provider_id=str(memory_rag_raw.get("embedding_provider_id") or ""),
+        default_recall_k=max(1, _to_int(memory_rag_raw.get("default_recall_k"), 20)),
+        max_return_results=max(
+            1, _to_int(memory_rag_raw.get("max_return_results"), 200)
+        ),
+    )
+
+    memory_rag_webui_raw = raw.get("memory_rag_webui", {})
+    memory_rag_webui = MemoryRAGWebUIConfig(
+        enable=_to_bool(memory_rag_webui_raw.get("enable"), False),
+        host=str(memory_rag_webui_raw.get("host") or "127.0.0.1").strip()
+        or "127.0.0.1",
+        port=max(1, min(65535, _to_int(memory_rag_webui_raw.get("port"), 8899))),
+        access_password=str(memory_rag_webui_raw.get("access_password") or ""),
+        session_timeout=max(
+            60, _to_int(memory_rag_webui_raw.get("session_timeout"), 3600)
+        ),
+    )
+
     return PluginConfig(
         group_history=group_history,
         active_reply=active_reply,
         group_features=group_features,
         global_settings=global_settings,
+        memory_rag=memory_rag,
+        memory_rag_webui=memory_rag_webui,
     )

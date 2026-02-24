@@ -86,7 +86,10 @@ def clean_response_text_for_history(completion_text: str) -> str:
     return text.strip()
 
 
-def build_interaction_instructions(mention_parse: bool, include_sender_id: bool) -> str:
+def build_interaction_instructions(
+    mention_parse: bool,
+    include_sender_id: bool,
+) -> str:
     instructions = ""
     if mention_parse and include_sender_id:
         instructions += (
@@ -126,7 +129,7 @@ def bounded_chat_history_text(messages: list[str]) -> str:
 def has_refuse_tag(text: str | None) -> bool:
     if not text:
         return False
-    return bool(STRICT_REFUSE_RE.fullmatch(text))
+    return bool(STRICT_REFUSE_RE.fullmatch(text.strip()))
 
 
 def chain_has_refuse_tag(chain: list) -> bool:

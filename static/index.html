@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Enhance Memory RAG Console</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <section id="login-view" class="view active">
+        <div class="login-card">
+          <h1>Enhance RAG</h1>
+          <p class="muted">Memory RAG Visualization Console</p>
+          <form id="login-form">
+            <label for="password">Access Password</label>
+            <input id="password" type="password" autocomplete="current-password" required />
+            <button type="submit">Log In</button>
+            <p id="login-error" class="error"></p>
+          </form>
+        </div>
+      </section>
+
+      <section id="dashboard-view" class="view">
+        <header class="topbar">
+          <div>
+            <h2>RAG Memory Dashboard</h2>
+            <p class="muted">Read, filter and clean persisted memories</p>
+          </div>
+          <div class="topbar-actions">
+            <button id="refresh-btn" class="ghost">Refresh</button>
+            <button id="logout-btn" class="ghost">Logout</button>
+          </div>
+        </header>
+
+        <section class="stats-grid">
+          <article class="stat">
+            <span>Total Memories</span>
+            <strong id="stat-total">-</strong>
+          </article>
+          <article class="stat">
+            <span>Group Scopes</span>
+            <strong id="stat-scopes">-</strong>
+          </article>
+          <article class="stat">
+            <span>Group IDs</span>
+            <strong id="stat-groups">-</strong>
+          </article>
+          <article class="stat">
+            <span>Role IDs</span>
+            <strong id="stat-roles">-</strong>
+          </article>
+        </section>
+
+        <section class="filters">
+          <input id="keyword-input" type="text" placeholder="Keyword or memory ID" />
+          <input id="scope-input" type="text" placeholder="Group scope (optional)" />
+          <input id="role-input" type="text" placeholder="Role ID (optional)" />
+          <button id="search-btn">Search</button>
+          <button id="reset-btn" class="ghost">Reset</button>
+        </section>
+
+        <section class="table-panel">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Content</th>
+                <th>Group Scope</th>
+                <th>Roles</th>
+                <th>Time</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="memory-body">
+              <tr>
+                <td colspan="6" class="center muted">No data</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="pager">
+          <button id="prev-btn" class="ghost">Prev</button>
+          <span id="page-info">Page 1</span>
+          <button id="next-btn" class="ghost">Next</button>
+          <label for="page-size">Size</label>
+          <select id="page-size">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+          </select>
+        </section>
+      </section>
+    </div>
+
+    <aside id="detail-drawer" class="drawer">
+      <div class="drawer-header">
+        <h3>Memory Detail</h3>
+        <button id="drawer-close" class="ghost">Close</button>
+      </div>
+      <pre id="drawer-content">{}</pre>
+    </aside>
+
+    <div id="toast" class="toast"></div>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
