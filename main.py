@@ -1406,12 +1406,12 @@ class Main(star.Star):
 
         caption = ""
         caption_cached = False
-        try:
-            cached_caption = captions_map.get(image_idx)
-            if isinstance(cached_caption, str) and cached_caption.strip():
-                caption = cached_caption.strip()
-                caption_cached = True
-            else:
+        cached_caption = captions_map.get(image_idx)
+        if isinstance(cached_caption, str) and cached_caption.strip():
+            caption = cached_caption.strip()
+            caption_cached = True
+        elif history_requested:
+            try:
                 if not cfg.group_history.image_caption:
                     yield self._make_text_tool_result(
                         "Image caption is disabled in enhance mode config."
@@ -1429,16 +1429,18 @@ class Main(star.Star):
                 caption = str(caption or "").strip()
                 if caption:
                     captions_map[image_idx] = caption
-        except Exception as e:
-            logger.exception(
-                "enhance-mode | use_image caption failed | origin=%s msg_id=%s image_index=%s error=%s",
-                origin,
-                normalized_message_id,
-                index_number,
-                e,
-            )
-            yield self._make_text_tool_result(f"Failed to get image description: {e}")
-            return
+            except Exception as e:
+                logger.exception(
+                    "enhance-mode | use_image caption failed | origin=%s msg_id=%s image_index=%s error=%s",
+                    origin,
+                    normalized_message_id,
+                    index_number,
+                    e,
+                )
+                yield self._make_text_tool_result(
+                    f"Failed to get image description: {e}"
+                )
+                return
 
         attach_success = False
         attach_error = ""
@@ -1525,7 +1527,7 @@ class Main(star.Star):
         if attach_requested and history_requested:
             success = attach_success and history_success
         elif attach_requested:
-            success = attach_success and bool(caption)
+            success = attach_success
         else:
             success = history_success
 

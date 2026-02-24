@@ -328,8 +328,14 @@ class RAGWebUIServer:
         ) -> dict[str, Any]:
             _ = token
             query = request.query_params
-            page = int(query.get("page", 1))
-            page_size = int(query.get("page_size", 20))
+            try:
+                page = int(query.get("page", 1))
+            except (TypeError, ValueError):
+                page = 1
+            try:
+                page_size = int(query.get("page_size", 20))
+            except (TypeError, ValueError):
+                page_size = 20
             keyword = str(query.get("keyword", ""))
             group_scope = str(query.get("group_scope", ""))
             role_id = str(query.get("role_id", ""))

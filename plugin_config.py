@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -48,6 +49,13 @@ def _to_float(value: Any, default: float) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _to_probability(value: Any, default: float) -> float:
+    parsed = _to_float(value, default)
+    if not math.isfinite(parsed):
+        parsed = default
+    return min(1.0, max(0.0, parsed))
 
 
 def _parse_whitelist(value: Any) -> list[str]:
@@ -184,7 +192,7 @@ def parse_plugin_config(raw: dict[str, Any] | None) -> PluginConfig:
     active_reply = ActiveReplyConfig(
         enable=_to_bool(active_reply_raw.get("enable"), False),
         mode=mode,
-        possibility=_to_float(active_reply_raw.get("possibility"), 0.1),
+        possibility=_to_probability(active_reply_raw.get("possibility"), 0.1),
         model_stack_size=max(1, _to_int(active_reply_raw.get("model_stack_size"), 8)),
         model_history_messages=max(
             0, _to_int(active_reply_raw.get("model_history_messages"), 0)
