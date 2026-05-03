@@ -1624,24 +1624,32 @@ class Main(star.Star):
                         event.unified_msg_origin,
                     )
                 )
-                if not session_curr_cid:
-                    logger.error(
-                        "enhance-mode | 当前未处于对话状态，无法主动回复，"
-                        "请使用 /switch 或 /new 创建一个会话。"
+                if session_curr_cid:
+                    conv = await self.context.conversation_manager.get_conversation(
+                        event.unified_msg_origin,
+                        session_curr_cid,
                     )
-                    return
-
-                conv = await self.context.conversation_manager.get_conversation(
-                    event.unified_msg_origin,
-                    session_curr_cid,
-                )
-                if not conv:
-                    logger.error("enhance-mode | 未找到对话，无法主动回复")
-                    return
+                    if not conv:
+                        logger.error("enhance-mode | 未找到对话，无法主动回复")
+                        return
+                else:
+                    session_curr_cid = (
+                        await self.context.conversation_manager.new_conversation(
+                            event.unified_msg_origin,
+                            platform_id=event.get_platform_id(),
+                        )
+                    )
+                    conv = await self.context.conversation_manager.get_conversation(
+                        event.unified_msg_origin,
+                        session_curr_cid,
+                    )
+                    logger.info(
+                        "enhance-mode | 当前未处于对话状态，尝试创建会话，"
+                    )
 
                 yield event.request_llm(
                     prompt=event.message_str,
-                    session_id=event.session_id,
+                    session_id=session_curr_cid,
                     conversation=conv,
                 )
             except Exception as e:
