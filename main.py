@@ -1568,7 +1568,7 @@ class Main(star.Star):
                 )
             return
 
-        active_ban = self.ban_store.get_active_ban(scope_id=scope_id, user_id=sender_id)
+        active_ban = self.ban_store.get_active_ban(scope_id=scope_id, user_id=sender_id, global_ban=True)
         if not active_ban:
             return
 
@@ -1742,13 +1742,14 @@ class Main(star.Star):
             cfg.group_features.mention_parse,
             cfg.group_history.include_sender_id,
         )
-        interaction_instructions += (
-            "\nIf a history message contains `[Image]` and visual details are necessary, "
-            "you may call `enhance_use_image(message_id, image_index, attach_to_model, write_to_history, prompt)`. "
-            "By default it does both: attach image to this run context and write description back into chat history. "
-            "Set `attach_to_model=false` for history-only. "
-            "Set `write_to_history=false` for attach-only."
-        )
+        if cfg.group_history.image_caption:
+            interaction_instructions += (
+                "\nIf a history message contains `[Image]` and visual details are necessary, "
+                "you may call `enhance_use_image(message_id, image_index, attach_to_model, write_to_history, prompt)`. "
+                "By default it does both: attach image to this run context and write description back into chat history. "
+                "Set `attach_to_model=false` for history-only. "
+                "Set `write_to_history=false` for attach-only."
+            )
         if cfg.web_search.enable:
             interaction_instructions += (
                 "\nWhen real-time facts or uncertain external information are needed, "
@@ -1770,7 +1771,6 @@ class Main(star.Star):
                     "Choose the message(s) you want to respond to from the chat history above, "
                     "and compose a natural reply. Quote the message you choose in most cases.\n"
                     "Only output your response and do not output any other information. "
-                    "You MUST use the SAME language as the chatroom is using."
                     f"{interaction_instructions}"
                 )
             else:
@@ -1781,7 +1781,6 @@ class Main(star.Star):
                     "Please react to it. Your entire output is your reply to this message. "
                     "Quote the message which is coming in most cases. "
                     "Only output your response and do not output any other information. "
-                    "You MUST use the SAME language as the chatroom is using."
                     f"{interaction_instructions}"
                 )
             req.contexts = []

@@ -249,7 +249,7 @@ class BanStore:
                 conn.commit()
                 return cursor.rowcount
 
-    def get_active_ban(self, scope_id: str, user_id: str) -> ActiveBanRecord | None:
+    def get_active_ban(self, scope_id: str, user_id: str, global_ban: bool = False) -> ActiveBanRecord | None:
         scope_id = self._normalize_scope_id(scope_id)
         user_id = self._normalize_user_id(user_id)
         if not scope_id or not user_id:
@@ -258,14 +258,24 @@ class BanStore:
         now_ts = int(time.time())
         with self._lock:
             with self._connect() as conn:
-                row = conn.execute(
-                    """
-                    SELECT scope_id, user_id, banned_at, expires_at
-                    FROM user_bans
-                    WHERE scope_id = ? AND user_id = ?
-                    """,
-                    (scope_id, user_id),
-                ).fetchone()
+                if global_ban:
+                    row = conn.execute(
+                        """
+                        SELECT scope_id, user_id, banned_at, expires_at
+                        FROM user_bans
+                        WHERE user_id = ?
+                        """,
+                        (user_id,),
+                    ).fetchone()
+                else:
+                    row = conn.execute(
+                        """
+                        SELECT scope_id, user_id, banned_at, expires_at
+                        FROM user_bans
+                        WHERE scope_id = ? AND user_id = ?
+                        """,
+                        (scope_id, user_id),
+                    ).fetchone()
                 if not row:
                     return None
                 expires_at = int(row["expires_at"])

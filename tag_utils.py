@@ -94,12 +94,11 @@ def build_interaction_instructions(
     if mention_parse and include_sender_id:
         instructions += (
             "\n\n## Mention\n"
-            'When you want to mention/@ a user in your reply, use a control tag: <mention id="user_id"/>.\n'
-            'For example: <mention id="123456"/> Hello!\n'
+            'When you want to mention/@ a user in your reply, use a control tag: <@user_id>.\n'
+            'For example: <@123456> Hello!\n'
             "You can mention multiple users in one message. "
             "The user_id can be found in the chat history format [nickname/user_id/time].\n"
-            "Do NOT use this format for yourself.\n"
-            "Important: mention tag is NOT a container tag. Do NOT output </mention>."
+            "Do NOT use this format for yourself."
         )
 
     instructions += (
