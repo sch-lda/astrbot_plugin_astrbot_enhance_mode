@@ -1921,6 +1921,24 @@ class Main(star.Star):
 
         result = await self._run_web_search(event, clean_query, cfg)
         return self._format_web_search_tool_result(result, cfg)
+    
+    @llm_tool(name="get_alice_status")
+    async def get_Alice_menu_status(self, event: AstrMessageEvent) -> str:
+        """Get the status of the Alice menu.
+
+        Args:
+            No arg Required.
+        """
+        base_url = "https://antfcc0.1007890.xyz/fetch_alicemenu_info"
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(base_url, timeout=10) as resp:
+                    if resp.status != 200:
+                        return f"Failed to fetch Alice menu status: HTTP {resp.status}"
+                    data = await resp.json()
+                    return f"Alice menu full status json:\n{json.dumps(data, ensure_ascii=False, indent=2)}"
+        except Exception as e:
+            return f"Error occurred while fetching Alice menu status: {e}"
 
     @llm_tool(name="enhance_get_ban_list_status")
     async def get_ban_list_status(
