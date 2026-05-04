@@ -1665,6 +1665,10 @@ class Main(star.Star):
         normalized_msg_id = self._normalize_message_id(msg_id)
         image_urls: list[str] = []
 
+        group_info = event.message_obj.group
+        if group_info:
+            logger.info(f"group class all: {group_info.__class__} all attrs: {dir(group_info)}")
+
         if history_cfg.include_sender_id and history_cfg.include_role_tag:
             sender_id = event.get_sender_id()
             role_tag = "(admin)" if event.is_admin() else "(member)"
