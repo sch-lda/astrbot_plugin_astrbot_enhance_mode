@@ -1665,10 +1665,6 @@ class Main(star.Star):
         normalized_msg_id = self._normalize_message_id(msg_id)
         image_urls: list[str] = []
 
-        group_info = event.message_obj.group
-        if group_info:
-            logger.info(f"group class all: {group_info.__class__} all attrs: {dir(group_info)}")
-
         if history_cfg.include_sender_id and history_cfg.include_role_tag:
             sender_id = event.get_sender_id()
             role_tag = "(admin)" if event.is_admin() else "(member)"
@@ -1768,6 +1764,25 @@ class Main(star.Star):
                 "you may call `grok_web_search(query)`."
             )
 
+        group_id = event.message_obj.group.group_id if event.message_obj.group else None
+        if group_id:
+            if group_id == "605035182143176711":
+                group_name_str = "【GTAV在线小助手】群组的【闲聊大厅】频道"
+            elif group_id == "1076161622340534333":
+                group_name_str = "【GTAV在线小助手】群组的【【Yimmenu & FSL】频道"
+            elif group_id == "1428827097593413632":
+                group_name_str = "【GTAV在线小助手】群组的【【Alice2333Menu】频道"
+            elif group_id == "1349029121828851834":
+                group_name_str = "【GTAV在线小助手】群组的【【GTAOL养老神器】频道"
+            elif group_id == "1349016425305608327":
+                group_name_str = "【GTAV在线小助手】群组的【【GTA5大助手】频道"
+            elif group_id == "1355420699036090409":
+                group_name_str = "【GTAV在线小助手】群组的【【免费菜单分享-说明】频道"
+            else:
+                group_name_str = f"【群组ID:{group_id}】"
+        else:
+            group_name_str = " "
+        
         if (
             cfg.group_features.react_mode_enable
             and event.get_message_type() == MessageType.GROUP_MESSAGE
@@ -1778,7 +1793,7 @@ class Main(star.Star):
             active_mode = event.get_extra("_enhance_active_reply_mode", "")
             if is_active_triggered and active_mode == "model_choice":
                 req.prompt = (
-                    f"You are now in a chatroom. The chat history is as follows:\n{bounded_chats}\n\n"
+                    f"You are now in a chatroom {group_name_str}. The chat history is as follows:\n{bounded_chats}\n\n"
                     "You decided to actively join this conversation because some recent messages are worth replying to.\n"
                     "Choose the message(s) you want to respond to from the chat history above, "
                     "and compose a natural reply. Quote the message you choose in most cases.\n"
@@ -1788,7 +1803,7 @@ class Main(star.Star):
             else:
                 prompt = req.prompt
                 req.prompt = (
-                    f"You are now in a chatroom. The chat history is as follows:\n{bounded_chats}\n\n"
+                    f"You are now in a chatroom {group_name_str}. The chat history is as follows:\n{bounded_chats}\n\n"
                     f"Now, a new message is coming: `{prompt}`. "
                     "Please react to it. Your entire output is your reply to this message. "
                     "Quote the message which is coming in most cases. "
