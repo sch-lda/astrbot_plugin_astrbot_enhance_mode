@@ -1769,15 +1769,15 @@ class Main(star.Star):
             if group_id == "605035182143176711":
                 group_name_str = "【GTAV在线小助手】群组的【闲聊大厅】频道"
             elif group_id == "1076161622340534333":
-                group_name_str = "【GTAV在线小助手】群组的【【Yimmenu & FSL】频道"
+                group_name_str = "【GTAV在线小助手】群组的【Yimmenu & FSL】频道"
             elif group_id == "1428827097593413632":
-                group_name_str = "【GTAV在线小助手】群组的【【Alice2333Menu】频道"
+                group_name_str = "【GTAV在线小助手】群组的【Alice2333Menu】频道"
             elif group_id == "1349029121828851834":
-                group_name_str = "【GTAV在线小助手】群组的【【GTAOL养老神器】频道"
+                group_name_str = "【GTAV在线小助手】群组的【GTAOL养老神器】频道"
             elif group_id == "1349016425305608327":
-                group_name_str = "【GTAV在线小助手】群组的【【GTA5大助手】频道"
+                group_name_str = "【GTAV在线小助手】群组的【GTA5大助手】频道"
             elif group_id == "1355420699036090409":
-                group_name_str = "【GTAV在线小助手】群组的【【免费菜单分享-说明】频道"
+                group_name_str = "【GTAV在线小助手】群组的【免费菜单分享-说明】频道"
             else:
                 group_name_str = f"【群组ID:{group_id}】"
         else:
